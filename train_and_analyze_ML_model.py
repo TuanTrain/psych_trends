@@ -2,6 +2,7 @@ import pandas as pd
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_squared_error, mean_absolute_error
+import matplotlib.pyplot as plt
 
 # Load the merged data
 file_path = './data/merged_data.csv'
@@ -75,8 +76,8 @@ mae_improvement = (baseline_mae - model_mae) / baseline_mae
 print(f"MSE Improvement: {mse_improvement * 100:.2f}%")
 print(f"MAE Improvement: {mae_improvement * 100:.2f}%")
 
+# Analysis #1
 # save a predictions table
-
 validation_data = data[data['Year'] >= 2020][:]
 
 # Add baseline and model predictions to the validation data
@@ -87,8 +88,40 @@ validation_data['Model_Predictions'] = predictions
 result_table = validation_data[['Year', 'State', 'Suicide Rate', 'Baseline_Predictions', 'Model_Predictions']]
 
 # Save the table to a CSV file
-output_file = './data/predictions.csv'
+output_file = './analysis/predictions.csv'
 result_table.to_csv(output_file, index=False)
 print(f"Prediction data exported to {output_file}")
+
+
+# Analysis #2
+# Extracting feature importances
+feature_importances = model.feature_importances_
+
+# Creating a DataFrame to hold feature names and their importance scores
+features = pd.DataFrame({
+    'Feature': X_train.columns,
+    'Importance': feature_importances
+})
+
+# Sorting the features based on importance
+features = features.sort_values(by='Importance', ascending=False)
+
+# Displaying the feature importances
+output_file = './analysis/feature_importance_data.csv'
+features.to_csv(output_file, index=False)
+
+print(f"ML model feature importance data exported to {output_file}")
+
+
+# Plotting feature importances for better visualization
+plt.figure(figsize=(12, 8))
+plt.barh(features['Feature'], features['Importance'])
+plt.xlabel('Importance')
+plt.ylabel('Feature')
+plt.title('Feature Importances in Random Forest Model')
+plt.gca().invert_yaxis()  # To display the highest importance at the top
+plt.subplots_adjust(left=0.2)
+plt.savefig("./analysis/model_feature_importance.png")
+
 
 

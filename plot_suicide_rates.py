@@ -2,7 +2,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 # Load your data
-data = pd.read_csv('./data/merged_data.csv')  # Replace with your file path
+data = pd.read_csv('./data/merged_data.csv')
 
 plt.figure(figsize=(24, 14))
 
@@ -21,5 +21,5 @@ plt.legend(loc='upper left', bbox_to_anchor=(1, 1))
 plt.grid(False)  # Removing grid lines
 plt.subplots_adjust(right=0.8)
 
-plt.savefig("suicide_rates_by_state_2004_2021.png")
+plt.savefig("./analysis/suicide_rates_by_state_2004_2021.png")
 
