@@ -59,9 +59,61 @@ def add_correct_swing_column_and_fisher(input_csv: str, output_csv: str):
     print(f"Odds ratio = {odds_ratio}")
     print(f"P-value     = {p_value}")
 
+    # 6a. Percent of swings predicted correctly
+    total = a + b + c + d
+    correct = a + d
+
+    up_total = a + b
+    down_total = c + d
+
+    overall_acc = correct / total if total else np.nan
+    up_acc = a / up_total if up_total else np.nan          # P(predicted Up | actual Up)
+    down_acc = d / down_total if down_total else np.nan    # P(predicted Down | actual Down)
+
+    # Balanced accuracy (macro-average of the two class recalls)
+    balanced_acc = np.nanmean([up_acc, down_acc])
+
+    print("\nDirection accuracy:")
+    print(f"Overall correct: {correct}/{total} ({overall_acc*100:.2f}%)")
+    print(f"Up correct:      {a}/{up_total} ({up_acc*100:.2f}%)")
+    print(f"Down correct:    {d}/{down_total} ({down_acc*100:.2f}%)")
+    print(f"Balanced acc:    {balanced_acc*100:.2f}%")
+
+    # Optional: save a compact summary CSV
+    summary = pd.DataFrame({
+        "a_actualUp_predUp": [a],
+        "b_actualUp_predDown": [b],
+        "c_actualDown_predUp": [c],
+        "d_actualDown_predDown": [d],
+        "overall_correct": [correct],
+        "overall_total": [total],
+        "overall_pct": [overall_acc * 100],
+        "up_total": [up_total],
+        "up_pct_correct": [up_acc * 100],
+        "down_total": [down_total],
+        "down_pct_correct": [down_acc * 100],
+        "balanced_accuracy_pct": [balanced_acc * 100],
+        "fisher_odds_ratio": [odds_ratio],
+        "fisher_p_value": [p_value],
+    })
+    # summary.to_csv("swing_direction_summary.csv", index=False)
+
+
     # 7. Write out to a new CSV with the extra columns
     #df.to_csv(output_csv, index=False)
     #print(f"\nProcessed file saved to: {output_csv}")
+
+    # contingency_table = np.array([[8, 11], [4, 5]])
+    # odds_ratio, p_value = fisher_exact(contingency_table, alternative='two-sided')
+
+    # # 6. Print results
+    # print("Contingency table:")
+    # print(f"               Predicted Up   Predicted Down")
+    # print(f"Actual Up          {a}               {b}")
+    # print(f"Actual Down        {c}               {d}")
+    # print("\nFisher's Exact Test Results:")
+    # print(f"Odds ratio = {odds_ratio}")
+    # print(f"P-value     = {p_value}")
 
 if __name__ == "__main__":
     input_file = "predictions.csv"

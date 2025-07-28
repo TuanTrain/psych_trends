@@ -43,11 +43,11 @@ fig1 = px.choropleth(avg_abs_error_data,
                      color='Relative_Improvement', 
                      color_continuous_scale=[(0, 'red'), (0.5, 'white'), (1, 'green')],
                      color_continuous_midpoint=0,
-                     range_color=(-30, 30))
+                     range_color=(-15, 15))
 
 # Add custom tick labels with percentages
-tick_vals = [-30, -20, -10, 0, 10, 20, 30]
-tick_text = ['-30%', '-20%', '-10%', '0%', '+10%', '+20%', '+30%']
+tick_vals = [-15, -10, -5, 0, 5, 10, 15]
+tick_text = ['-15%', '-10%', '-5%', '0%', '+5%', '+10%', '+15%']
 
 fig1.update_layout(
     title='Percent Improvement in Absolute Error of Suicide Rate Prediction by State',
@@ -66,7 +66,8 @@ fig1.update_layout(
 
 fig1.show()
 
-fig1.write_image("relative_improvement_absolute_error.png")
+fig1.write_image("relative_improvement_absolute_error2.pdf")
+fig1.write_image("relative_improvement_absolute_error2.png")
 
 # Count and list the states with positive and negative improvement
 positive_improvement_states = avg_abs_error_data[avg_abs_error_data['Relative_Improvement'] > 0]['State'].tolist()

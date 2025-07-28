@@ -1,8 +1,10 @@
 import pandas as pd
-from sklearn.model_selection import train_test_split
+import numpy as np
+import os
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_squared_error, mean_absolute_error
 import matplotlib.pyplot as plt
+
 
 # Load the merged data
 file_path = './data/merged_data.csv'
@@ -42,8 +44,9 @@ y_train = y[data['Year'] <= 2019]
 X_val = X[data['Year'] >= 2020]
 y_val = y[data['Year'] >= 2020]
 
+
 # Creating and training the Random Forest model
-model = RandomForestRegressor(n_estimators=110, random_state=420)
+model = RandomForestRegressor(n_estimators=100, random_state=32)
 model.fit(X_train, y_train)
 
 # Predicting on the validation set
@@ -123,5 +126,135 @@ plt.gca().invert_yaxis()  # To display the highest importance at the top
 plt.subplots_adjust(left=0.2)
 plt.savefig("./analysis/model_feature_importance.png")
 
+# -------------------- 6.  Permutation importance --------------------
+from sklearn.inspection import permutation_importance
 
+perm = permutation_importance(
+           model,
+           X_val,
+           y_val,
+           n_repeats=30,
+           random_state=100,
+           scoring="neg_mean_squared_error")
+
+fi = (pd.DataFrame({"Feature": X_train.columns,
+                    "Importance": perm.importances_mean,
+                    "Std": perm.importances_std})
+        .sort_values("Importance", ascending=False))
+
+fi.to_csv("./analysis/permutation_importance_data.csv", index=False)
+
+plt.figure(figsize=(12,8))
+plt.barh(fi["Feature"], fi["Importance"])
+plt.xlabel("Mean Δ(MSE) after shuffling (validation set)")
+plt.title("Permutation Importance – HistGradientBoosting (monotonic)")
+plt.gca().invert_yaxis()
+plt.tight_layout()
+plt.savefig("./analysis/permutation_importance.png")
+
+
+# -------------------- 7. Permutation test for p-values --------------------
+def permutation_test_improvement(
+        X_train, y_train, 
+        X_val, y_val, 
+        baseline_mse, baseline_mae, 
+        observed_mse, observed_mae, 
+        n_perms=1000,
+        n_estimators=100,
+        random_state=123):
+
+    rng = np.random.RandomState(random_state)
+    
+    mse_improvements_null = np.zeros(n_perms)
+    mae_improvements_null = np.zeros(n_perms)
+    
+    for i in range(n_perms):
+        print(i)
+        # Shuffle target in training set
+        y_perm = y_train.sample(frac=1, random_state=rng.randint(0, 1_000_000))
+        
+        # Fit a new Random Forest on permuted targets
+        rf_perm = RandomForestRegressor(
+            n_estimators=n_estimators, 
+            random_state=rng.randint(0, 1_000_000),
+            n_jobs=-1
+        )
+        rf_perm.fit(X_train, y_perm)
+        
+        # Predict on validation
+        y_pred_perm = rf_perm.predict(X_val)
+        
+        # Compute metrics
+        mse_perm = mean_squared_error(y_val, y_pred_perm)
+        mae_perm = mean_absolute_error(y_val, y_pred_perm)
+        
+        # Improvement vs baseline (same formula you used)
+        mse_improvements_null[i] = (baseline_mse - mse_perm) / baseline_mse
+        mae_improvements_null[i] = (baseline_mae - mae_perm) / baseline_mae
+
+    # Observed improvements
+    observed_mse_impr = (baseline_mse - observed_mse) / baseline_mse
+    observed_mae_impr = (baseline_mae - observed_mae) / baseline_mae
+
+    # One-sided p-value: proportion of null >= observed
+    p_mse = (np.sum(mse_improvements_null >= observed_mse_impr) + 1) / (n_perms + 1)
+    p_mae = (np.sum(mae_improvements_null >= observed_mae_impr) + 1) / (n_perms + 1)
+
+    results = {
+        "observed_mse_improvement": observed_mse_impr,
+        "observed_mae_improvement": observed_mae_impr,
+        "p_value_mse": p_mse,
+        "p_value_mae": p_mae,
+        "null_mse_improvements": mse_improvements_null,
+        "null_mae_improvements": mae_improvements_null
+    }
+    return results
+
+# Run the permutation test
+perm_results = permutation_test_improvement(
+    X_train=X_train,
+    y_train=y_train,
+    X_val=X_val,
+    y_val=y_val,
+    baseline_mse=baseline_mse,
+    baseline_mae=baseline_mae,
+    observed_mse=model_mse,
+    observed_mae=model_mae,
+    n_perms=100,
+    n_estimators=100,
+    random_state=42
+)
+
+# Print summary
+print("\n--- Permutation Test Results ---")
+print(f"Observed MSE improvement: {perm_results['observed_mse_improvement']*100:.2f}%")
+print(f"MSE p-value (one-sided):  {perm_results['p_value_mse']:.4f}")
+print(f"Observed MAE improvement: {perm_results['observed_mae_improvement']*100:.2f}%")
+print(f"MAE p-value (one-sided):  {perm_results['p_value_mae']:.4f}")
+
+# Save distributions
+os.makedirs("./analysis", exist_ok=True)
+pd.DataFrame({
+    "null_mse_improvement": perm_results["null_mse_improvements"],
+    "null_mae_improvement": perm_results["null_mae_improvements"]
+}).to_csv("./analysis/permutation_null_distributions.csv", index=False)
+
+# Histograms
+plt.figure(figsize=(10,6))
+plt.hist(perm_results["null_mse_improvements"], bins=30, alpha=0.75)
+plt.axvline(perm_results["observed_mse_improvement"], linestyle='--', linewidth=2)
+plt.xlabel("Null MSE Improvement (permutation models)")
+plt.ylabel("Frequency")
+plt.title("Null Distribution of Mean Square Error Improvement\n(Dotted Line = Trained Model)")
+plt.tight_layout()
+plt.savefig("./analysis/permutation_null_mse_hist.png")
+
+plt.figure(figsize=(10,6))
+plt.hist(perm_results["null_mae_improvements"], bins=30, alpha=0.75)
+plt.axvline(perm_results["observed_mae_improvement"], linestyle='--', linewidth=2)
+plt.xlabel("Null MAE Improvement (permutation models)")
+plt.ylabel("Frequency")
+plt.title("Null Distribution of Mean Average Error Improvement\n(Dotted Line = Trained Model)")
+plt.tight_layout()
+plt.savefig("./analysis/permutation_null_mae_hist.png")
 
